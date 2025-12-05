@@ -1,34 +1,44 @@
+name: CI Windows (MSVC)
+
+on:
+  push:
+  pull_request:
+  repository_dispatch:
+    types: [run_build]
+
+permissions:
+  contents: read
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
 jobs:
-  build:
-    runs-on: windows-arm64
+  msvc:
+    runs-on: windows-11-arm
+    strategy:
+      matrix:
+        version: [2022]
+        configuration: [Debug, Release]
+        platform: [ARM64]
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      # VS 2022 + ARM64 tools are already present on the arm64 image;
-      # you can usually skip msvc-dev-cmd, or still call it with arch: arm64
-      - name: Set up MSVC 2022 (native ARM64)
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: arm64
-          vsversion: '2022'
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v1
 
-      - name: Restore NuGet packages
-        run: nuget restore pkg\msvc\RetroArch-msvc2022.sln
-
-      - name: Build RetroArch (Release | ARM64)
+      - name: Compile RA
+        working-directory: "${{ github.workspace }}/pkg/msvc"
         run: |
-          msbuild pkg\msvc\RetroArch-msvc2022.sln ^
-            /p:Configuration=Release ^
-            /p:Platform=ARM64 ^
-            /m
+          msbuild -p:"Configuration=${{ matrix.configuration }}" -p:"Platform=${{ matrix.platform }}" .\RetroArch-msvc${{ matrix.version }}.sln
 
-      - name: Upload ARM64 build artifacts
-        uses: actions/upload-artifact@v4
+      - name: Get short SHA
+        id: slug
+        shell: powershell
+        run: echo "sha8=$('${{ github.sha }}'.Substring(0,8))"  >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: retroarch-windows-arm64-msvc2022-native
+          name: retroarch-${{ matrix.version }}-${{ matrix.configuration }}-${{ matrix.platform }}-${{ steps.slug.outputs.sha8 }}
           path: |
-            **\retroarch.exe
-            **\*.dll
+            pkg/msvc/${{ matrix.platform }}/${{ matrix.configuration }}/RetroArch-msvc${{ matrix.version }}.exe
