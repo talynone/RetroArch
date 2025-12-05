@@ -1,4 +1,4 @@
-name: CI Windows (MSVC)
+name: CI Windows ARM64 (MSVC)
 
 on:
   push:
